@@ -1,0 +1,294 @@
+---
+title: " Assignment 1"
+subtitle: "Data visualization"
+date: "01.10.2024"
+author: "Hibst Mekonnen"
+output: pdf_document
+---
+This is the PDF document which describes the steps done to complete assignment 1 for the course data visualization.
+
+First the code needed to run rmarkdown to pdf.
+
+```{r}
+library(rmarkdown)
+#tinytex::install_tinytex(force = TRUE)
+```
+```{r include = FALSE}
+library(tidyverse)
+library(remotes)
+library(ggplot2) 
+library(here)
+library(tidyr)
+```
+
+1. Install the `ukelection2019` package by typing:
+```{r}
+#remotes::install_github("kjhealy/ukelection2019")
+```
+When I ran this I got an error so I checked the github page and they gave another solution on how to download the package:
+```{r}
+#install.packages("devtools")
+#library(devtools)
+#devtools::install_github("kjhealy/ukelection2019")
+```
+This also failed, so I tried something else.
+
+Installing using drat package:
+
+```{r}
+#install.packages("drat")
+library(drat)
+drat::addRepo("kjhealy")
+#install.packages("ukelection2019")
+library("ukelection2019")
+df_ukvote2019 <- ukvote2019 
+```
+2. Load it and look at the table it provides. 
+```{r}
+df_ukvote2019
+```
+3. What were the results in the Dover constituency?
+```{r}
+df_ukvote2019 %>%
+  filter(constituency=="Dover")
+```
+4. How many constituencies are there?
+``` {r}
+df_ukvote2019 %>%
+  group_by(constituency)%>%
+  slice_head(n=1)%>%
+  nrow()
+```
+5. How many candidates did each party run in the election as a whole?
+```{r}
+  df_ukvote2019%>%
+  group_by(party_name)%>%
+  tally()%>%
+  select(party_name, n)
+```
+This code is with the assumption that each name is a distinct candidate. This means even if there are names which have been repeated, I make the assumption that these are still different individuals. 
+
+6. Show the number of candidates fielded by party from highest to lowest.
+```{r}
+df_ukvote2019%>%
+  group_by(party_name)%>%
+  tally() %>%
+  select(party_name, n)%>%
+  arrange(desc(n))
+```
+7. Calculate the percentage of all candidates fielded by each party.
+```{r}
+df_ukvote2019 %>%
+  group_by(party_name)%>%
+  summarise(candidate=n())%>%
+  mutate(perc_candidate= candidate/ sum(candidate),
+  pct = round((perc_candidate*100),2))%>%
+  arrange(desc(pct))
+```
+8. Find the five worst-performing candidates overall, as measured by number of votes.
+```{r}
+df_ukvote2019 %>%
+  slice_min(votes, n=5)%>%
+  select(candidate, party_name, votes)
+```
+9. Find the five largest constituencies in the country as measured by votes cast. 
+```{r}
+df_ukvote2019 %>%
+  group_by(constituency)%>%
+  slice_head(n=1)%>%
+  select(constituency,total_votes_cast)%>%
+  arrange(desc(total_votes_cast))%>%
+  print(n=5)
+```
+10. Find the total number of votes cast nationally for the Labour and Conservative parties.
+```{r}
+df_ukvote2019 %>%
+  group_by(party_name)%>%
+  summarise(total=sum(votes))%>%
+  filter(party_name=="Labour"|party_name=="Conservative")
+```
+11. Find the ten largest vote-winning candidates in the country, as measured by percentage of vote share in their constituency.
+```{r}
+df_ukvote2019 %>%
+  arrange(desc(vote_share_percent))%>%
+  select(candidate, vote_share_percent)%>%
+  print(n=10)
+```
+12. Show in one single bar graph the votes share of the Labour and the Conservative parties for each of the 5 biggest constituencies in terms of electors. There should be two bars per constituency.
+```{r}
+const= c("Labour", "Conservative")
+graph_stuff <- df_ukvote2019 %>%
+  filter(party_name== "Labour"| party_name=="Conservative")%>%
+  slice_max(electorate, n=10)
+
+f1=ggplot(graph_stuff, aes(x=constituency,
+                           y=vote_share_percent,
+                           fill=party_name))+
+  geom_bar(stat="identity", position = "dodge") +
+  labs(title= "Votes share of the Labour and the Conservative party for 
+       the 5 biggest constituencies in terms of electors",
+       x= "Constituencies",
+       y= "vote share")+
+  scale_fill_manual(values = c("Labour" = "red", "Conservative" = "blue"), name = "Party") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+f1
+```  
+
+13. Build a graph showing how the votes share for the Labour and for the Conservative parties are distributed.
+
+```{r}
+const= c("Labour", "Conservative")
+f2 <- df_ukvote2019 %>%
+  group_by(constituency)%>%
+  filter(party_name == "Labour"|party_name == "Conservative")%>%
+  ggplot(aes(x = vote_share_percent, fill = party_name)) +
+  geom_density(alpha = 0.7, position = "identity", color = "black") +
+  labs(title = "Distribution of Vote Share for Labour and Conservative Parties",
+       x = "Vote Share (%)",
+       y = "") +
+  scale_fill_manual(values = c("Labour" = "red", "Conservative" = "blue"), name = "Party") +
+  theme_minimal()
+
+f2
+```  
+
+14. Based on a graph, illustrate how turnout is (differentially) correlated with votes share for the Conservative and the Labour party. Briefly comment.
+
+```{r}
+const= c("Labour", "Conservative")
+f3 <- df_ukvote2019 %>%
+  group_by(constituency)%>%
+  filter(party_name == "Labour"|party_name == "Conservative")%>%
+  ggplot(aes(x=turnout,
+             y=vote_share_percent,
+             color= party_name))+
+  geom_point(alpha=0.6) +
+  geom_smooth(method = "loess", se = TRUE)+
+  labs(title= "Correlation of Voter Turnout on the Vote Share Percentage for
+       the Conservative and Labour party",
+       x= "Vote Share Percentage",
+       y= "Voter Turnout",
+       color= "Party")+
+  scale_color_manual(values = c("Labour" = "red", "Conservative" = "blue")) + 
+  theme_minimal()
+
+f3
+```  
+The graph above shows the correlation of voter turnout on the vote share percentage for the Conservative and the Labour parties. There are clear and distinct patterns for each party. When the vote share percentage is on the lower for the Labour party, the overall voter turnout is higher than when compared with the voter turnout when vote share percentage is higher. This means that in constituencies where there are a lot of voters for the Labour party, there is on average a lower voter turnout. This could be because voters are discouraged from voting in constituencies where there is a dominating Labour party. The opposite trend can be seen for the Conservative party, where voter turnout increases with vote share percentage. This means that there are a lot of people voting in the constituencies where the Conservative party is most dominant. This could be because there is a need to counter domination of the Conservative party. It could also be because the people that vote for the Conservative party are more likely to vote and that most of the people who vote for the Conservative party live in the similar constituencies. 
+
+15. Find the 5 constituencies in which the combined vote share of the Green and UKIP is the highest (Hint: you may need pivoting functions).
+
+```{r}
+green_UKIP <- df_ukvote2019 %>%
+  filter(party_name=="Green" |party_name=="UKIP")%>%
+  select(constituency, party_name, vote_share_percent)%>%
+  pivot_wider(names_from = party_name, values_from = vote_share_percent, values_fill = 0)%>%
+  mutate(combined_share=Green+UKIP)%>%
+  slice_max(combined_share, n=5)%>%
+  select(constituency, combined_share)%>%
+  print()
+```
+
+16. Build a graph showing, in each of these 5 constituencies, i.) the combined vote share of the Green and Brexit Party, ii.) the vote share of the Labour, iii.) the vote share of the Conservative.
+
+```{r}
+
+con_Green_UKIP <- c("Brighton Pavilion", "Bristol West", "Dulwich & West Norwood", "Bury St Edmunds", "Isle of Wight")
+
+f4 <- df_ukvote2019 %>%
+  filter(constituency %in% con_Green_UKIP) %>%
+  filter(party_name!="Independent")%>%
+  select(constituency, party_name, vote_share_percent) %>%
+  pivot_wider(names_from = party_name, values_from = vote_share_percent, values_fill = 0) %>%
+  mutate(share_green_brexit = Green + `The Brexit Party`) %>%
+  select(constituency, share_green_brexit, Labour, Conservative)%>%
+  pivot_longer(cols = c(share_green_brexit, Labour, Conservative), 
+               names_to = "Party", values_to = "Vote_Share")%>%
+  ggplot( aes(x = constituency, y = Vote_Share, fill = Party)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Vote Shares in Selected Constituencies",
+       x = "Constituencies",
+       y = "Vote Share (%)") +
+  scale_fill_manual(values = c(share_green_brexit = "green", Labour = "red", Conservative = "blue"),
+                    labels = c("Conservative", "Labour", "Green + Brexit Party")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+f4
+
+```
+The constituency Isle of Wight has two different values for the Independent party. This error needs to be fixed or else the table can not be pivoted. Since we do not need the information on the Independent party we can just deselect it from our data.
+
+17. In how many constituencies was the combined vote share of the Green and UKIP less than 2%?
+```{r}
+vote_share_Green_UKIP <- df_ukvote2019 %>%
+  filter(party_name=="Green"|party_name=="UKIP")%>%
+  select(constituency, party_name, vote_share_percent) %>%
+  pivot_wider(names_from = party_name, values_from = vote_share_percent, values_fill = 0) %>%
+  mutate(share_green_brexit = Green + UKIP) %>%
+  filter(share_green_brexit < 2)%>%
+  nrow()
+
+vote_share_Green_UKIP
+```
+  
+18. Plot the vote share of the Labour party against that of the Conservative party. How are the two correlated?
+
+```{r}
+
+f5 <- df_ukvote2019 %>%
+  filter(party_name=="Labour"|party_name=="Conservative")%>%
+  select(constituency, party_name, vote_share_percent)%>%
+  group_by(party_name)%>%
+  pivot_wider(names_from = party_name, values_from = vote_share_percent, values_fill = 0)%>%
+  ggplot(aes(x=Labour,
+             y=Conservative))+
+  geom_point(alpha=0.6) +
+  geom_smooth(method = "loess", se = FALSE)+
+  labs(title= "Correlation between Labour party and Conservative party",
+       x= "Labour party",
+       y= "Conservative party")
+
+f5
+```
+
+The figure above shows the correlation between the vote share of the Labour party and the Conservative party. It shows a clear negative correlation between the Labour party vote share and the Conservative party vote share, which means that as the vote share of the Labour party increases the vote share of the Conservative party decreases. The Conservative party vote share peaks when the share of votes for the Labour party is at around 20%. Until that point, the two parties are positively correlated.
+
+
+19. Create a new data.frame excluding all constituencies in which the Liberal Democrat received 0% of the votes share. Based on this new data.frame, build a single graph showing i) the correlation between the votes share of the Liberal Democrat and of the Conservative in blue and ii) the correlation between the votes share of the Liberal Democrat and of the Labour party in red. Add a legend. Briefly comment the resulting graph. (Hint: if a variable name has a space in it, you can refer to it in R using backtick symbols, e.g. `The Independent')
+
+```{r}
+
+df_exclude <- df_ukvote2019%>%
+  filter(party_name %in% c("Liberal Democrat", "Conservative", "Labour"))%>%
+  select(party_name, constituency, vote_share_percent)%>%
+  pivot_wider(names_from = party_name, values_from = vote_share_percent, values_fill = 0) %>%
+  filter(`Liberal Democrat` > 0)
+
+f6 <- ggplot(df_exclude)+ 
+  geom_point(aes(x = `Liberal Democrat`, y = Conservative, color = "Conservative"), alpha = 0.6) +
+  geom_point(aes(x = `Liberal Democrat`, y = Labour, color = "Labour"), alpha = 0.6) +
+  geom_smooth(aes(x = `Liberal Democrat`, y = Conservative, color = "Conservative"), method = "loess", se = TRUE) +
+  geom_smooth(aes(x = `Liberal Democrat`, y = Labour, color = "Labour"), method = "loess", se = TRUE) +
+  labs(title = "Correlation between Liberal Democrat and Other Parties Vote Share",
+       x = "Liberal Democrat Vote Share (%)",
+       y = "Vote Share (%)") +
+  scale_color_manual(name = "Party", values = c("Conservative" = "blue", "Labour" = "red")) +
+  theme_minimal()
+
+f6
+```
+
+20. Save all your graphs using the "here()" function. 
+    Code can be found in "Assignment_1_Mekonnen.Rmd"
+
+```{r include=FALSE}
+ggsave(here("Figures_Mekonnen", "Figure_1.png"), plot=f1) 
+ggsave(here("Figures_Mekonnen", "Figure_2.png"), plot=f2) 
+ggsave(here("Figures_Mekonnen", "Figure_3.png"), plot=f3) 
+ggsave(here("Figures_Mekonnen", "Figure_4.png"), plot=f4) 
+ggsave(here("Figures_Mekonnen", "Figure_5.png"), plot=f5) 
+ggsave(here("Figures_Mekonnen", "Figure_6.png"), plot=f6) 
+```
