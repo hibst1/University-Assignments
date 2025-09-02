@@ -1,0 +1,260 @@
+\documentclass{article}
+\usepackage{booktabs}  % For toprule, midrule, etc.
+\usepackage{longtable} % For tables that might span multiple pages
+\usepackage{array}     % For better column formatting
+\usepackage{amsmath}   % For mathematical symbols like $-$
+\usepackage{caption}   % If you want to add a caption to your table
+\usepackage{graphicx} % Required for inserting images
+\usepackage{subcaption}
+\usepackage[margin=1in]{geometry} % Adjust '1in' as needed for default margins
+\usepackage{adjustbox} % For adjusting table size
+\usepackage{multirow}
+\usepackage{multicol}
+\title{Tables Output File}
+\author{Christelle Aziz, Teun de Koning and Hibst Mekonnen}
+\date{September 2024}
+
+% This tex file shows how we transferred the tables which resulted from the code into a pdf "Output_tables".
+\begin{document}
+
+\maketitle
+
+This document is here to show the latex tables which are results of the replication code: "replication\_group\_1.do", formatted to resemble the tables which are in the paper "Parents' Beliefs about Their Children's Academic Ability: Implications for Educational Investments." by Rebecca Dizon-Ross (2019).
+
+
+
+% TABLE 1: Baseline summary statistics 
+
+\begin{flushleft}
+\begin{table}[htbp]
+    \caption{Baseline summary statistics}
+    \centering
+    \scalebox{0.81}{
+
+\begin{tabular}{p{8cm} p{1cm} p{1cm} p{1cm} p{1cm} p{1cm} p{1cm} p{1cm} }
+        \toprule
+        
+&  \multicolumn{2}{c}{\bfseries Full Sample} & \textbf{Control} & \textbf{Treat} &  \multicolumn{3}{c}{\bfseries Treat - Control} \\
+& \textbf{Mean} & \textbf{SD} & \textbf{Mean} & \textbf{Mean} & \textbf{Mean} & \textbf{Mean Std. error} & \textbf{p-val T=C} \\
+\midrule
+\multicolumn{8}{@{}l}{\textbf{\emph{A. Respondent Background}}}    \\ \addlinespace[3pt]
+Female& 0.77 & 0.42 & 0.77 & 0.76 & -0.01 & 0.02 & 0.37\\
+Primary education decision maker& 0.92 & 0.27 & 0.91 & 0.92 & 0.01 & 0.01 & 0.31\\
+Age&         40.8 &         11.0 &         40.6 &         41.0 & 0.32 & 0.44 & 0.47\\
+Education (years)& 4.44 & 3.57 & 4.42 & 4.45 & 0.04 & 0.13 & 0.78\\
+Respondent has secondary education +& 0.11 & 0.31 & 0.11 & 0.11 & 0.01 & 0.01 & 0.62\\
+Parent can read or write Chichewa& 0.67 & 0.47 & 0.67 & 0.68 & 0.01 & 0.02 & 0.67\\
+Respondent is farmer& 0.46 & 0.5 & 0.47 & 0.46 & -0.01 & 0.02 & 0.7\\
+Respondent's weekly income&        2,126 &        4,744 &        2,051 &        2,203 &          197 &          194 & 0.31\\
+\addlinespace[2pt]        \midrule \multicolumn{8}{@{}l}{\textbf{\emph{B. Household Background}}}    \\ \addlinespace[3pt]
+Family size (Number of children\textsuperscript{a})& 5.13 & 1.74 & 5.16 & 5.1 & -0.05 & 0.07 & 0.47\\
+One-parent household& 0.19 & 0.39 & 0.19 & 0.2 & 0.01 & 0.02 & 0.47\\
+Parents' average education (years)& 4.66 & 3.25 & 4.68 & 4.64 & -0.04 & 0.12 & 0.74\\
+Any parent has secondary education +& 0.18 & 0.38 & 0.17 & 0.19 & 0.02 & 0.01 & 0.24\\
+\addlinespace[2pt] \midrule \multicolumn{8}{@{}l}{\textbf{\emph{C. Student Information}}}    \\ \addlinespace[3pt]
+Child's grade level& 3.72 & 1.37 & 3.72 & 3.72 & 0 & 0.04 & 0.94\\
+Child's age&         11.6 & 2.68 &         11.7 &         11.6 & -0.1 & 0.08 & 0.21\\
+Child is female& 0.51 & 0.5 & 0.52 & 0.5 & -0.02 & 0.01 & 0.25\\
+Baseline attendance & 0.91 & 0.13 & 0.92 & 0.91 & 0 & 0 & 0.72\\
+Annual per-child education expenditures&        1,742 &        2,791 &        1,712 &        1,772 &         58.0 &         83.0 & 0.48\\
+\hspace{6 mm} Fees paid to schools&          381 &        1,128 &          384 &          378 & -6.84 &         23.9 & 0.78\\
+\hspace{6 mm} Uniform expense&          576 &        1,019 &          548 &          603 &         49.9 &         36.1 & 0.17\\
+\hspace{6 mm} School supplies, books, tutoring, etc.\textsuperscript{b}&          785 &        1,819 &          780 &          790 &         14.3 &         62.3 & 0.82\\
+Any supplementary expenditures on child& 0.9 & 0.3 & 0.9 & 0.89 & -0.01 & 0.01 & 0.49\\
+\addlinespace[2pt]        \midrule \multicolumn{8}{@{}l}{\textbf{\emph{D. Academic Performance (Average Achievement Scores)}}}    \\ \addlinespace[3pt]
+Overall score&         46.8 &         17.5 &         47.1 &         46.4 & -0.74 & 0.46 & 0.11\\
+Math score&         44.9 &         20.2 &         45.4 &         44.4 & -1.08 & 0.54 & 0.04\\
+English score&         44.2 &         20.1 &         44.5 &         43.9 & -0.56 & 0.53 & 0.29\\
+Chichewa score&         51.2 &         22.5 &         51.5 &         51.0 & -0.55 & 0.59 & 0.35\\
+(Math $-$ English) Score& 0.71 &         19.5 & 0.93 & 0.5 & -0.53 & 0.51 & 0.3\\
+\addlinespace[2pt]  \midrule\multicolumn{8}{@{}l}{\textbf{\emph{E. Respondent's Beliefs about Child's Academic Performance}}}    \\ \addlinespace[3pt]
+Believed Overall Score&         62.4 &         16.5 &         62.7 &         62.0 & -0.78 & 0.48 & 0.11\\
+Believed Math Score&         64.7 &         19.0 &         65.2 &         64.3 & -0.94 & 0.55 & 0.09\\
+Believed English Score&         55.3 &         20.9 &         55.6 &         54.9 & -0.71 & 0.62 & 0.25\\
+Believed Chichewa Score&         66.8 &         19.4 &         66.8 &         66.7 & -0.1 & 0.6 & 0.87\\
+Beliefs about (Math $-$ English) Score& 9.48 &         21.5 & 9.59 & 9.37 & -0.23 & 0.63 & 0.71\\
+SD of Individual Beliefs about Score& 7.69 &         10.1 & 8.08 & 7.28 & -0.8 & 0.38 & 0.03\\
+\addlinespace[2pt]        \midrule \multicolumn{8}{@{}l}{\textbf{\emph{F. Gaps Between Believed and True Academic Performance}}}    \\ \addlinespace[3pt]
+Abs Val [Believed $-$ True Overall Score]&         20.4 &         14.5 &         20.4 &         20.3 & -0.12 & 0.43 & 0.78\\
+Abs Val [Believed $-$ True Math Score]&         25.8 &         18.0 &         25.8 &         25.7 & -0.1 & 0.52 & 0.85\\
+Abs Val [Believed $-$ True English Score]&         21.4 &         16.4 &         21.6 &         21.1 & -0.57 & 0.48 & 0.23\\
+Abs Val [Believed $-$ True Chichewa Score]&         23.8 &         17.5 &         23.7 &         23.9 & 0.19 & 0.51 & 0.72\\
+Abs Val [Believed $-$ True (Math-English) Score]&         22.1 &         17.4 &         22.3 &         21.9 & -0.44 & 0.51 & 0.39\\
+Abs Val [Believed $-$ True Overall Score (Child1-2)]&         18.7 &         15.1 &         18.9 &         18.5 & -0.34 & 0.59 & 0.56\\
+Believed - True Overall Score&         15.6 &         19.5 &         15.6 &         15.6 & -0.08 & 0.58 & 0.89\\
+Believed score higher than true score& 0.79 & 0.41 & 0.79 & 0.79 & 0.01 & 0.01 & 0.65\\
+Wrong about who (child 1 or 2) is higher-scoring& 0.31 & 0.46 & 0.32 & 0.31 & -0.01 & 0.02 & 0.63\\
+\addlinespace[2pt]         \midrule \multicolumn{8}{@{}l}{\textbf{\emph{G. Beliefs about Complementarity}}}    \\ \addlinespace[3pt]
+Believes educ. and achievement complementary\textsuperscript{c}& 0.91 & 0.29 & 0.9 & 0.91 & 0 & 0.01 & 0.68\\
+\addlinespace[2pt] \midrule \multicolumn{6}{@{}l}{\textbf{\emph{Sample Sizes}}}    \\ \addlinespace[3pt]
+Sample Size--HHs&        2,634 &  &        1,327 &        1,307 &  &  & \\
+Sample Size--Kids&        5,268 &  &        2,654 &        2,614 &  &  & \\
+\bottomrule
+
+\end{tabular}
+}
+\end{table}
+\end{flushleft}
+
+% TABLE 2: Replication without expansion
+%% Experimental outcomes: Information treatment e↵ects on the slope of investments on academic performance
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[h!]
+    \centering
+    \caption{Information treatment effects on the slope of investments on academic performance}
+    \scalebox{0.95}{
+ \begin{tabular}{p{3.5cm} p{1.5cm} p{1.5cm} p{1.5cm} p{1.5cm} p{1.5cm}}
+\toprule
+Dependent variable: & Endline belief & Math workbook difficulty level & English workbook difficulty level & ln(math textbook WTP) - ln(English textbook WTP) & Secondary school lottery tickets\\
+ &  (1) &  (2) & (3) &  (4) & (5)\\
+\midrule
+\addlinespace
+Treat $\times$ Score&        0.41&        1.33&        1.25&       0.013&       0.036\\
+                    &     [0.025]&     [0.093]&     [0.096]&    [0.0022]&    [0.0052]\\
+\addlinespace
+Score               &        0.31&        0.65&        0.76&      0.0023&       0.015\\
+                    &     [0.017]&     [0.066]&     [0.073]&    [0.0016]&    [0.0051]\\
+\addlinespace
+Treat               &       -26.2&       -91.0&       -68.4&        0.14&            \\
+                    &      [1.33]&      [4.91]&      [4.83]&     [0.041]&            \\
+\addlinespace
+Observations        &       5,244&       5,239&       5,239&       5,219&       5,258\\
+R-squared           &       0.339&       0.218&       0.206&       0.036&       0.154\\
+\bottomrule
+Score Used & Overall & Math & English & English-Math & Overall\\
+Household FE & No & No &No &No & Yes \\
+\bottomrule
+\end{tabular}}
+
+\end{table}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
+
+% TABLE 2: Replication with extension on heterogeneity 
+%%  Information treatment effects on the slope of investments on academic performance by high and low ex-ante belief about score
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[h!]\ContinuedFloat
+    \centering
+    \caption{Extension by high and low ex-ante belief about score}
+ \begin{adjustbox}{width=\textwidth}
+ \begin{tabular}{p{5cm} p{2.5cm} p{2.5cm} p{2.5cm} p{2.5cm} p{2.5cm}}
+
+\toprule
+Dependent variable: & Endline belief & Math workbook difficulty level & English workbook difficulty level & ln(math textbook WTP) - ln(English textbook WTP) & Secondary school lottery tickets\\
+ &  (1) &  (2) & (3) &  (4) & (5)\\
+ 
+\midrule
+\addlinespace
+Treat $\times$ Score $\times$ Beliefs&      -0.054&        0.20&       0.042&      0.0040&       0.011\\
+                    &     [0.046]&      [0.18]&      [0.19]&    [0.0037]&     [0.010]\\
+\addlinespace
+Treat $\times$ Score&        0.53&        1.41&        1.48&       0.015&       0.038\\
+                    &     [0.031]&      [0.11]&      [0.11]&    [0.0021]&    [0.0074]\\
+\addlinespace
+Treat $\times$ Beliefs&       -10.1&       -42.4&       -44.8&       -0.67&       -1.21\\
+                    &      [2.42]&      [9.94]&      [9.98]&      [0.19]&      [0.52]\\
+\addlinespace
+Score $\times$ Beliefs&      -0.036&       -0.38&      -0.029&      0.0016&     -0.0071\\
+                    &     [0.030]&      [0.12]&      [0.14]&    [0.0024]&    [0.0073]\\
+\addlinespace
+Treat               &       -25.1&       -77.5&       -56.4&        0.32&            \\
+                    &      [1.38]&      [5.37]&      [5.02]&     [0.052]&            \\
+\addlinespace
+Score               &        0.16&        0.50&        0.38&     0.00015&      0.0050\\
+                    &     [0.022]&     [0.079]&     [0.085]&    [0.0015]&    [0.0061]\\
+\addlinespace
+Beliefs             &        22.6&        72.6&        67.5&        0.86&        1.73\\
+                    &      [1.47]&      [6.65]&      [7.38]&      [0.13]&      [0.37]\\
+\addlinespace
+Observations        &       5,244&       5,239&       5,239&       5,219&       5,258\\
+R-squared           &       0.505&       0.289&       0.302&       0.101&       0.195\\
+\bottomrule
+Score Used & Overall & Math & English & English-Math & Overall\\
+Household FE & No & No &No &No & Yes \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
+
+% TABLE 4: Replication
+%% Heterogeneity by parent education in belief inaccuracies and treatment effects
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[h!]
+    \centering
+    \caption{ PANEL A: Heterogeneity by parent education in belief inaccuracies and treatment effects }
+    \begin{adjustbox}{width=\textwidth}
+ \begin{tabular}{p{5cm} p{1.5cm} p{1.5cm} p{1.5cm} p{1.5cm} p{1.5cm} p{1.5cm}}
+\toprule
+\multirow{3}{*}{Dependent variable:} &  \multicolumn{6}{c}{Parent beliefs about child's score in:} \\
+ & Overall & Math & English level & Chichewa & Math - English & Child 2-1 \\
+ &  (1) &  (2) & (3) &  (4) & (5) & (6)\\
+\midrule
+\addlinespace
+Score $\times$ Parents yrs of educ.&       0.014&       0.018&       0.014&      0.0098&       0.013&       0.017\\
+                    &    [0.0038]&    [0.0038]&    [0.0043]&    [0.0036]&    [0.0047]&    [0.0049]\\
+\addlinespace
+Score               &        0.25&        0.13&        0.22&        0.20&       0.091&        0.32\\
+                    &     [0.023]&     [0.023]&     [0.026]&     [0.021]&     [0.029]&     [0.028]\\
+\addlinespace
+Parent yrs of educ. &       -0.53&       -0.98&      -0.065&       -0.32&       -0.78&       0.044\\
+                    &      [0.20]&      [0.20]&      [0.21]&      [0.23]&     [0.094]&      [0.12]\\
+\addlinespace
+\addlinespace[2pt] Observations&       5,220&       5,222&       5,222&       5,222&       5,222&       5,218\\
+\bottomrule
+\end{tabular} 
+\end{adjustbox}
+\end{table}
+
+\begin{table}[h!]\ContinuedFloat
+
+    \centering
+    \caption{PANEL B: Heterogeneity by parent education in belief inaccuracies and treatment effects}
+    \begin{adjustbox}{width=\textwidth}
+ \begin{tabular}{lcccccc}
+\addlinespace
+\toprule
+Dependent variable & Endline belief & Math workbook difficulty level & English workbook difficulty level\\
+ & (1) & (2) & (3) \\
+\midrule
+
+\addlinespace
+Treat $\times$ Score $\times$ Parent yrs of educ.&      -0.026&       -0.12&      -0.066\\
+                    &    [0.0071]&     [0.027]&     [0.029]\\
+\addlinespace
+Treat $\times$ Score&        0.53&        1.92&        1.57\\
+                    &     [0.044]&      [0.16]&      [0.17]\\
+\addlinespace
+Score $\times$ Parent yrs of educ.&       0.022&       0.079&       0.033\\
+                    &    [0.0051]&     [0.020]&     [0.022]\\
+\addlinespace
+Score               &        0.21&        0.28&        0.61\\
+                    &     [0.031]&      [0.11]&      [0.13]\\
+\addlinespace
+Treat $\times$ Parent yrs of educ.&        1.22&        6.54&        2.31\\
+                    &      [0.39]&      [1.45]&      [1.53]\\
+\addlinespace
+Treat               &       -31.8&      -121.8&       -79.2\\
+                    &      [2.31]&      [8.57]&      [8.59]\\
+\addlinespace
+Parent yrs of educ. &       -0.79&       -3.89&       -0.34\\
+                    &      [0.27]&      [1.08]&      [1.18]\\
+\addlinespace
+\addlinespace[2pt] Observations&       5,208&       5,203&       5,203\\
+R-squared           &       0.342&       0.221&       0.208\\
+P-val: Treat $\times$ Score $\times$ Yrs.Educ.=0&            &            &            \\
+\\ Score Used       &     Overall&        Math&     English\\
+
+\bottomrule        
+\end{tabular}
+\end{adjustbox}
+\end{table}
+\restoregeometry % Restore original margins
+
+\end{document}
