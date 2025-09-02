@@ -1,0 +1,1378 @@
+---
+title: "Final Assignment: Data in Real Life"
+author: "Christelle Aziz, Hibst Mekonnen"
+date: "31-01-2025"
+output: pdf_document
+always_allow_html: true
+fontsize: 11pt
+---
+
+This document describes the code for the final assignment for Data Science in Real Life. 
+
+## Loading Libraries
+```{r message = FALSE, warning = FALSE}
+
+# Rmarkdown 
+library(rmarkdown)
+library(tinytex)
+# Data Manipulation & Cleaning
+library(tidyverse)  
+library(janitor)  
+library(here) 
+library(jsonlite)
+
+# Spatial Analysis & Mapping
+library(sf) 
+library(leaflet) 
+
+# Data Visualization
+library(ggplot2)  
+library(scales)  
+library(colorspace)  
+library(GGally) 
+
+# Statistical Analysis & Modeling
+library(car)  
+library(DescTools)  
+library(corrplot) 
+library(caret) 
+library(moments)  
+
+# Interactive Tables
+library(DT)  
+```
+
+# Data on Airbnb in Paris
+
+We used the data on Airbnbs in Paris for this data cleaning and analysis exercise.
+```{r}
+df_1 <- read_csv(here("Data/listings.csv"))
+```
+
+Let's take a look at this dataset:
+```{r}
+head(df_1, 10)
+```
+
+```{r results=FALSE}
+ls(df_1)
+str(df_1)
+```
+
+Looking at the columns, there are 5 different questions we will analyze using this dataset. 
+
+1. What factors influence the price of an Airbnb listing in Paris? 
+2. How does availability and price vary across neighborhoods in Paris? 
+3. What is the relationship between host characteristics and listing performance? 
+4. How does the license status affect the price/score/etc? 
+
+
+# I- Cleaning the dataset
+
+There are many variables that are not relevant for the analysis that we will be doing therefore we will start by removing these from the dataset.
+
+```{r}
+unwanted_columns <- c("listing_url", "scrape_id",  "source", "name", "picture_url", "host_url", "host_name", "host_thumbnail_url", "host_picture_url", "host_neighbourhood", "host_verifications", "neighbourhood", "neighbourhood_group_cleansed", "bathrooms", "beds", "minimum_minimum_nights", "maximum_minimum_nights", "minimum_maximum_nights", "maximum_maximum_nights", "minimum_nights_avg_ntm", "maximum_nights_avg_ntm", "calendar_updated", "number_of_reviews_l30d", "calculated_host_listings_count_entire_homes", "calculated_host_listings_count_private_rooms", "calculated_host_listings_count_shared_rooms", "first_review", "maximum_nights", "minimum_nights")
+df_cleaned <- df_1 %>%
+  select(-unwanted_columns)
+```
+
+Next, when looking at the host_response_rate, the host_response_time and the host_acceptance_rate, we found that their NAs are misrepresented. Therefore, we corrected those.
+
+```{r}
+na <- c("host_response_rate", "host_response_time", "host_acceptance_rate")
+
+df_cleaned <- df_cleaned %>%
+  mutate(
+    across(
+      na,
+      ~ case_when(
+        .x == 'N/A' ~ NA_character_,
+        .default = .x
+      )
+    )
+  )
+```
+
+We also noticed that the host_response_rate and the host_acceptance_rate as well as the price should be made into numeric variables. To do that we first had to remove the % and $ from the variables.
+
+```{r}
+df_cleaned$host_response_rate <- str_remove(df_cleaned$host_response_rate, pattern = "%")
+df_cleaned$host_acceptance_rate <- str_remove(df_cleaned$host_acceptance_rate, pattern = "%")
+df_cleaned$price<-str_remove(df_cleaned$price, pattern = "\\$")
+
+df_cleaned$price <- gsub(",", "", df_cleaned$price)
+
+df_cleaned$bathrooms_text <- gsub("[^0-9.]","",df_cleaned$bathrooms_text)
+```
+
+Then we turned the character variables into numeric variables.
+
+```{r}
+df_cleaned$host_response_rate <- as.numeric(df_cleaned$host_response_rate)
+df_cleaned$host_acceptance_rate <- as.numeric(df_cleaned$host_acceptance_rate)
+df_cleaned$price <- as.numeric(df_cleaned$price)
+```
+
+For the host_since variable, only the year is relevant for the analysis. Hence, we kept only the year.
+
+```{r}
+df_cleaned$host_since <- format(df_cleaned$host_since, "%Y")
+```
+
+While looking at the host characteristics, we had 2 variables that describe the amount of listings a host has: host_listings_count & host_total_listings_count. Because we didn't know what the difference was between the two, we checked the Data dictionary provided by Airbnb. There the two have the same description: "The number of listings the host has (per Airbnb unknown calculations)". This puzzled us. We hypothesized that the host_total_listings_count summarizes the amount of Airbnb listings a host has all over the world, where as the host_listings_count might only count the ones that are in Paris. To check, if we are correct about this assumption, we did the following: 
+
+```{r}
+# According to dataset (in Paris)
+df_3 <- df_cleaned %>%
+  count(host_id, name = "total_listings_Paris") %>%
+  arrange(desc(total_listings_Paris))
+
+#According to Airbnb calculations
+df_4 <- df_cleaned %>%
+  select(host_id,host_total_listings_count) %>%
+  group_by(host_id)%>%
+  arrange(desc(host_total_listings_count)) %>%
+  slice(host_id, 1)
+
+df_5 <- df_cleaned %>%
+  select(host_id, host_listings_count) %>%
+  group_by(host_id) %>%
+  arrange(desc(host_listings_count)) %>%
+  slice(host_id,1)
+
+df_6 <- df_3 %>%
+  left_join(df_4,
+            by="host_id")
+
+df_6 <- df_6 %>%
+  left_join(df_5,
+            by = "host_id")
+
+head(df_6,1)
+```
+
+In the table, we can clearly say that the number of listings according to the host_id is far different from the ones that are written in host_listings_count and host_total_listings_count. Therefore, we assume that host_listings_count and host_total_listings_count are describing the same thing (total listings of a host across the world), whereas our own count of the total_listings_Paris, shows how many listings a host has in Paris.
+
+When looking at the table we also saw that there were hosts with over 700 listings, which was surprising to us. Hence, we took a closer look at two examples of these.
+
+```{r}
+df_cleaned %>% 
+  group_by(host_id)%>%
+  filter(host_id%in%c(33889201,314994947)) %>%
+  select("host_about")%>%
+  slice(host_id, 1)
+```
+
+Because we were concerned by one person having over 700 listings, we chose to check what kind of host it is. Turns out it is a company, which makes sense.
+
+We think it's relevant for our analysis if a host has a lot of Airbnbs, but also if they have a lot of Airbnbs outside of Paris. Therefore we are keeping the estimations of Airbnb of the host_total_listings_count. We also created a variable to show how many Airbnbs a host has in Paris.
+
+```{r}
+df_cleaned <- df_cleaned %>%
+  select(-host_listings_count)
+
+df_cleaned <- df_cleaned %>%
+  left_join(df_3,
+            by = "host_id")
+```
+
+Next, we had to clean the variable "amenities". This variable needed to be split, to make it useful for the analysis. We ended up deciding that the specific amenities, tv, wifi, kitchen, air conditioning, parking, pool, washer, dryer, heating, pets, smoke alarm and elevator, were the ones most relevant to us.
+
+```{r}
+keywords <- c("tv", "wifi", "kitchen", "air conditioning", "parking", "pool", "washer", "dryer", "heating", "pets", "smoke alarm", "elevator")
+
+df_cleaned <- df_cleaned %>%
+  mutate(amenities_list = map(amenities, ~ fromJSON(.) %>% unlist() %>% tolower()))
+
+for (keyword in keywords) {
+  df_cleaned <- df_cleaned %>%
+    mutate(!!paste0("has_", keyword) := map_lgl(amenities_list, ~ any(str_detect(.x, keyword))))
+}
+
+df_amenity <- df_cleaned %>%
+  select(id, starts_with("has_"))  # Keep only the keyword indicator columns
+
+missing_ids <- setdiff(df_1$id, df_amenity$id)
+
+df_amenity <- df_amenity %>%
+  select(-has_availability)
+
+if (length(missing_ids) == 0) {
+  print("All IDs from df_cleaned are present in df_amenity.")
+} else {
+  print("The following IDs are missing in df_amenity:")
+  print(missing_ids)
+}
+```
+
+For the host locations, we create a column which shows whether the host resides in France or abroad.
+
+``` {r}
+unique_host_locations <- unique(df_cleaned$host_location)
+
+df_cleaned <- df_cleaned %>%
+  mutate(
+    host_fr_other = ifelse(
+      str_detect(host_location, "France"), "France", "Other"
+    )
+  )
+
+df_cleaned <- df_cleaned%>%
+  select(-c("amenities", "amenities_list"))
+```
+
+# II- Checking for biases.
+
+To check for potential biases in our variables, we look at the distributions of our variables:
+
+```{r results=FALSE}
+
+# 1. Summary of the dataset
+summary(df_cleaned)
+
+# 2. Check for Missing Values
+missing_values <- sapply(df_cleaned, function(x) sum(is.na(x)))
+missing_values <- data.frame(Variable = names(missing_values), MissingCount = missing_values)
+print(missing_values)
+```
+
+The missing values will be taken care of when running the regression. 
+
+```{r}
+
+# 3. Distribution Analysis
+distribution_plots <- function(df_cleaned) {
+  numeric_vars <- df_cleaned %>% 
+    select_if(is.numeric)%>%
+    select(-c(id, host_id, latitude, longitude))
+  for (var in names(numeric_vars)) {
+    p <- ggplot(df_cleaned, aes_string(x = var)) +
+      geom_histogram(bins = 30, fill = 'blue', color = 'black', alpha = 0.7) +
+      labs(title = paste("Distribution of", var))
+    print(p)
+  }
+}
+distribution_plots(df_cleaned)
+
+df_cleaned%>% tabyl(accommodates)
+```
+
+1. host_response_rate: The histogram shows a heavily left-skewed distribution of host_response_rate, with a significant concentration around 100%. This suggests a strong bias toward high response rates.
+
+2. host_acceptance_rate: The histogram appears to be heavily left-skewed, with a large proportion of hosts having acceptance rates near 100%. This skewness may introduce bias.
+
+3. host_total_listings_count: The histogram is highly right-skewed, with most hosts having few listings while a small number of hosts have significantly more. This indicates a potential disparity between individual and professional hosts.
+
+4. accomodates: The histogram shows that most listings cater to 2 to 4 guests, with a sharp decline in frequency for higher guest capacities. Listings accommodating more than 8 guests are rare.
+
+5. bedrooms: The histogram indicates that most listings have between 0 and 3 bedrooms, with higher counts being exceedingly rare. This suggests the dataset is predominantly composed of smaller accommodations.
+
+6. price: The histogram is highly right-skewed, with the majority of listings concentrated at lower price points. A small number of listings have significantly higher prices, indicating the presence of outliers.
+
+7. availability_30: The distribution indicates that many listings have zero availability in the coming 30 days, with a smaller but steady frequency across other availability values. Listings with full availability (30 days) also show a slight increase.
+
+8. availability_60: The distribution shows that many listings no availability in the coming 60 days. There is a steady distribution across intermediate values, with a noticeable rise for listings with full availability (60 days).
+
+9. availability_90: The histogram shows a heavily right-skewed distribution, with a significant concentration around zero availability. This suggests a strong bias toward inactive or completely booked hosts. There is a steady distribution across intermediate values, with a noticeable rise for listings with full availability (90 days).
+
+10. availability_365: The histogram shows a right-skewed distribution of availability_365, with a significant concentration around zero availability. Additionally, the data exhibits a recurring pattern roughly every quarter, suggesting seasonal or cyclical variations in availability throughout the year.
+
+11. number_of_reviews: The histogram shows a heavily right-skewed distribution of number_of_reviews, with the majority of listings having fewer than 50 reviews. A small number of listings exceed 1,000 reviews, indicating potential outliers
+
+12. number_of_reviews_ltm (reviews in the last 12 months): The histogram shows a heavily right-skewed distribution, with the majority of listings having fewer than 50 reviews in the last 12 months. A small number of listings exceed 400 reviews, indicating the presence of outliers.
+
+13. review_scores_rating: The histogram shows a heavily left-skewed distribution, with the majority of listings receiving ratings close to 5. This indicates a strong bias toward high review scores, suggesting generally positive feedback.
+
+14. review_scores_accuracy: The histogram shows a heavily left-skewed distribution, with the majority of listings receiving accuracy scores close to 5. This indicates a strong bias toward high accuracy scores, suggesting generally positive feedback.
+
+15. review_scores_cleanliness: The histogram shows a heavily left-skewed distribution, with the majority of listings receiving cleanliness scores close to 5. This indicates a strong bias toward high cleanliness scores, suggesting generally positive feedback.
+
+16. review_scores_checkin: The histogram shows a heavily left-skewed distribution, with the majority of listings receiving checkin scores close to 5. This indicates a strong bias toward high checkin scores, suggesting generally positive feedback.
+
+17. review_scores_communication: The histogram shows a heavily left-skewed distribution, with the majority of listings receiving communication scores close to 5. This indicates a strong bias toward high communication scores, suggesting generally positive feedback.
+
+19. review_scores_location: The histogram shows a heavily left-skewed distribution, with the majority of listings receiving location scores close to 5. This indicates a strong bias toward high location scores, suggesting generally positive feedback.
+
+20. review_scores_value: The histogram shows a heavily left-skewed distribution, with the majority of listings receiving scores close to 5. This indicates a strong bias toward high review scores, suggesting generally positive feedback.
+
+21. calculated_host_listings_count: The histogram shows a heavily right-skewed distribution, with the majority of hosts managing fewer than 10 listings. A small number of hosts manage significantly more listings, indicating potential outliers or professional operators.
+
+22. reviews_per_month: The histogram shows a heavily right-skewed distribution, with the majority of listings receiving fewer than 2 reviews per month. A small number of listings exceed 10 reviews per month, indicating potential outliers or highly active properties.
+
+23. total_listings_Paris: The histogram shows a heavily right-skewed distribution, with the majority of hosts managing fewer than 10 listings. A small number of hosts manage significantly more listings, indicating potential outliers or professional operators.
+
+```{r}
+# Check for Duplicates
+duplicates <- df_cleaned[duplicated(df_cleaned), ]
+print(paste("Number of duplicate rows:", nrow(duplicates)))
+```
+
+# III- Data analysis
+
+1. Visualizing differences in prices and availability across Parisian neighborhoods.
+1.a. How does availability change across neighbourhoods in Paris?
+```{r}
+paris_neighbourhoods <- st_read(here("Data/neighbourhoods.geojson"))
+
+unique(paris_neighbourhoods$neighbourhood)
+unique(df_cleaned$neighbourhood_cleansed)
+
+availability_data <- df_cleaned %>%
+  filter(!is.na(neighbourhood_cleansed), 
+         !is.na(availability_30),
+         !is.na(availability_60),
+         !is.na(availability_90),
+         !is.na(availability_365)) %>%
+  group_by(neighbourhood_cleansed) %>%
+  summarise(
+    avg_availability_30 = mean(availability_30, na.rm = TRUE),
+    avg_availability_60 = mean(availability_60, na.rm = TRUE),
+    avg_availability_90 = mean(availability_90, na.rm = TRUE),
+    avg_availability_365 = mean(availability_365, na.rm = TRUE),
+  )
+
+paris_map_data <- paris_neighbourhoods%>%
+  left_join(availability_data, 
+            by = c("neighbourhood" = "neighbourhood_cleansed"))
+
+pal_30 <- colorNumeric(
+  palette = "YlOrRd",
+  domain = paris_map_data$avg_availability_30,
+  na.color = "transparent"
+)
+
+pal_60 <- colorNumeric(
+  palette = "BuGn",
+  domain = paris_map_data$avg_availability_60,
+  na.color = "transparent"
+)
+
+pal_90 <- colorNumeric(
+  palette = "PuBu",
+  domain = paris_map_data$avg_availability_90,
+  na.color = "transparent"
+)
+
+pal_365 <- colorNumeric(
+  palette = "Blues",
+  domain = paris_map_data$avg_availability_365,
+  na.color = "transparent"
+)
+
+leaflet(data = paris_map_data) %>%
+  addProviderTiles("CartoDB.Positron") %>%  
+
+  
+  addPolygons(
+    fillColor = ~pal_30(avg_availability_30),
+    weight = 1,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    group = "Availability 30 Days",
+    highlight = highlightOptions(
+      weight = 2,
+      color = "#666",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    ),
+    label = ~paste0(neighbourhood, ": ", round(avg_availability_30, 2)),
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"
+    )
+  ) %>%
+  
+  addPolygons(
+    fillColor = ~pal_60(avg_availability_60),
+    weight = 1,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    group = "Availability 60 Days",
+    highlight = highlightOptions(
+      weight = 2,
+      color = "#666",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    ),
+    label = ~paste0(neighbourhood, ": ", round(avg_availability_60, 2)),
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"
+    )
+  ) %>%
+  
+  addPolygons(
+    fillColor = ~pal_90(avg_availability_90),
+    weight = 1,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    group = "Availability 90 Days",
+    highlight = highlightOptions(
+      weight = 2,
+      color = "#666",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    ),
+    label = ~paste0(neighbourhood, ": ", round(avg_availability_90, 2)),
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"
+    )
+  ) %>%
+
+    addPolygons(
+    fillColor = ~pal_365(avg_availability_365),
+    weight = 1,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    group = "Availability 365 Days",
+    highlight = highlightOptions(
+      weight = 2,
+      color = "#666",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    ),
+    label = ~paste0(neighbourhood, ": ", round(avg_availability_365, 2)),
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"
+    )
+  ) %>%
+  addLayersControl(
+    baseGroups = c("Availability 30 Days", "Availability 60 Days", "Availability 90 Days", "Availability 365 Days"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) %>%
+
+  
+  addLegend(
+    position = "bottomright",
+    pal = pal_30,
+    values = ~avg_availability_30,
+    title = "Avg Availability<br>Next 30 Days",
+    group = "Availability 30 Days",
+    opacity = 0.7
+  ) %>%
+  addLegend(
+    position = "bottomright",
+    pal = pal_60,
+    values = ~avg_availability_60,
+    title = "Avg Availability<br>Next 60 Days",
+    group = "Availability 60 Days",
+    opacity = 0.7
+  ) %>%
+  addLegend(
+    position = "bottomright",
+    pal = pal_90,
+    values = ~avg_availability_90,
+    title = "Avg Availability<br>Next 90 Days",
+    group = "Availability 90 Days",
+    opacity = 0.7
+  )%>%
+  addLegend(
+    position = "bottomright",
+    pal = pal_365,
+    values = ~avg_availability_365,
+    title = "Avg Availability<br>Next 365 Days",
+    group = "Availability 365 Days",
+    opacity = 0.7
+  )
+```
+
+1.b. How does price change across neighbourhoods in Paris?
+
+```{r}
+
+price_data <- df_cleaned %>%
+  filter(!is.na(neighbourhood_cleansed), 
+         !is.na(price)) %>%
+  group_by(neighbourhood_cleansed) %>%
+  summarise(
+    avg_price= mean(price, na.rm = TRUE))
+
+paris_map_data <- paris_neighbourhoods%>%
+  left_join(price_data, 
+            by = c("neighbourhood" = "neighbourhood_cleansed"))
+
+pal_30 <- colorNumeric(
+  palette = "YlOrRd",
+  domain = paris_map_data$price,
+  na.color = "transparent"
+)
+
+leaflet(data = paris_map_data) %>%
+  addProviderTiles("CartoDB.Positron") %>%  
+
+  
+  addPolygons(
+    fillColor = ~pal_30(avg_price),
+    weight = 1,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    group = "Average Price",
+    highlight = highlightOptions(
+      weight = 2,
+      color = "#666",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    ),
+    label = ~paste0(neighbourhood, ": ", round(avg_price, 2)),
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"
+    )
+  ) %>%
+  addLegend(
+    position = "bottomright",
+    pal = pal_30,
+    values = ~avg_price,
+    title = "Average Price",
+    group = "Availability 30 Days",
+    opacity = 0.7
+  )
+```
+
+2. What factors influence the price of an Airbnb listing in Paris? 
+We Use variables like room_type, property_type, neighbourhood_cleansed, accommodates, bedrooms, bathrooms, and amenities.
+
+2.a. Does the type of room or the type of accommodation affect the price?
+
+```{r}
+g1 <- df_cleaned %>%
+  filter(!is.na(room_type), 
+         !is.na(price)) %>%
+  group_by(room_type) %>%
+  summarise(avg_price_rt = mean(price)) %>%
+  mutate(price_bracket = cut(avg_price_rt, 
+                             breaks = seq(0, 400, by = 50),
+                             labels = c("[0-50]", "[50-100]", "[100-150]", "[150-200]", 
+                                        "[200-250]", "[250-300]", "[300-350]", "[350-400]"),
+                             include.lowest = TRUE)) %>%
+  ggplot(aes(x = room_type, 
+             y = avg_price_rt, 
+             fill = price_bracket)) + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Average Price by Room Type", 
+       x = "Room Type", 
+       y = "Average Price", 
+       fill = "Price Bracket") +
+  scale_fill_viridis_d(option = "C") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g1
+```
+### Average Price by Room Type
+This chart highlights the variation in average prices across different room types. Hotel rooms have the highest average price, followed by entire home/apartments, private rooms, and shared rooms. The significant price gap between hotel rooms and shared rooms suggests that room type heavily influences pricing, with shared rooms being the most budget-friendly option.
+
+```{r}
+g2 <- df_cleaned %>%
+  filter(!is.na(property_type), 
+         !is.na(price)) %>%
+  group_by(property_type) %>%
+  summarise(avg_price_rt = mean(price, na.rm = TRUE)) %>%
+  filter(avg_price_rt < 500) %>%
+  mutate(price_bracket = cut(avg_price_rt, 
+                             breaks = seq(0, 500, by = 50),  
+                             labels = c("[0-50]", "[50-100]", "[100-150]", "[150-200]", 
+                                        "[200-250]", "[250-300]", "[300-350]", "[350-400]", 
+                                        "[400-450]", "[450-500]"),
+                             include.lowest = TRUE)) %>%
+  ggplot(aes(x = fct_reorder(property_type, avg_price_rt), 
+             y = avg_price_rt, 
+             fill = price_bracket)) + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Average Price by Property Type (Below 500 Euro)",
+       x = "Property Type",
+       y = "Average Price", 
+       fill = "Price Bracket")+
+  scale_fill_viridis_d(option = "C") +  # Continuous color scale
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 75, hjust = 1))
+
+g2
+```
+
+### Average Price by Property Type (Below 500)
+This chart shows the distribution of average prices for property types where the price is below 500. It reveals that specific property types, such as "Casa particular" and "Entire serviced apartments," tend to have higher average prices compared to others, such as "Shared room in a hostel." The ordering emphasizes that even within the below-500 price range, there is considerable variability based on property type.
+
+```{r}
+g3 <- df_cleaned %>%
+  filter(!is.na(property_type), 
+         !is.na(price)) %>%
+  group_by(property_type) %>%
+  summarise(avg_price_rt = mean(price, na.rm = TRUE)) %>%
+  filter(avg_price_rt > 500) %>%
+  mutate(price_bracket = cut(avg_price_rt, 
+                             breaks = seq(500, 3500, by = 300),  
+                             labels = c("[500-800]", "[800-1100]", "[1100-1400]", "[1400-1700]", 
+                                        "[1700-2000]", "[2000-2300]", "[2300-2600]", "[2600-2900]", 
+                                        "[2900-3200]", "[3200-3500]"),
+                             include.lowest = TRUE)) %>%
+  ggplot(aes(x = fct_reorder(property_type, avg_price_rt), 
+             y = avg_price_rt, 
+             fill = price_bracket)) + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Average Price by Property Type (Above 500 Euro)",
+       x = "Property Type",
+       y = "Average Price", 
+       fill = "Price Bracket") +
+  scale_fill_viridis_d(option = "C") +  
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g3
+```
+### Average Price by Property Type (Above 500)
+This chart illustrates average prices for property types exceeding 500. Entire villas and towers dominate the higher price range, reflecting the premium associated with luxury and exclusivity. Other unique properties, such as castles and houseboats, also fetch high average prices, indicating their niche market appeal. This chart underscores that specialized accommodations command significantly higher rates.
+
+2.b. How does the neighborhood affect the price?
+```{r}
+g4 <- df_cleaned %>%
+  filter(!is.na(neighbourhood_cleansed), 
+         !is.na(price)) %>%
+  group_by(neighbourhood_cleansed) %>%
+  summarise(avg_price_rt = mean(price)) %>%
+  mutate(price_bracket = cut(avg_price_rt, 
+                             breaks = seq(100, 500, by = 50),  
+                             labels = c("[100-150]", "[150-200]", "[200-250]", "[250-300]", 
+                                        "[300-350]", "[350-400]", "[400-450]", "[450-500]"),
+                             include.lowest = TRUE)) %>%
+  ggplot(aes(x = fct_reorder(neighbourhood_cleansed, avg_price_rt),
+             y = avg_price_rt,
+             fill = price_bracket)) +
+  geom_bar(stat = "identity") + 
+  labs(title = "Average Price by Neighbourhood",
+       x = "Neighbourhood",
+       y = "Average Price", 
+       fill = "Price Bracket") +
+  scale_fill_viridis_d(option = "C") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g4
+```
+### Neighborhood
+This bar chart displays the average price of accommodations across different neighborhoods. The neighborhoods are ordered from the lowest to the highest average price. Notable patterns emerge, with neighborhoods like Ménilmontant and Buttes-Montmartre showing the lowest average prices, while upscale areas such as Palais-Bourbon and Élysée exhibit significantly higher average prices. This highlights substantial pricing variation influenced by the neighborhood, suggesting that location plays a critical role in determining accommodation costs.
+
+2.c. How does the size of the Airbnb affect the price, proxied by the number of people it accommodates and the number of bedrooms?
+```{r}
+g5 <- df_cleaned %>%
+  filter(!is.na(accommodates), !is.na(price)) %>%
+  group_by(accommodates) %>%
+  summarise(avg_price_rt = mean(price, na.rm = TRUE), .groups = "drop") %>%
+  mutate(price_bracket = cut(avg_price_rt, 
+                             breaks = seq(0, 2000, by = 200), 
+                             labels = c("[0-200]", "[200-400]", "[400-600]", "[600-800]", 
+                                        "[800-1000]", "[1000-1200]", "[1200-1400]", "[1400-1600]", 
+                                        "[1600-1800]", "[1800-2000]"),
+                             include.lowest = TRUE)) %>%
+  ggplot(aes(x = accommodates, 
+             y = avg_price_rt, 
+             fill = price_bracket)) + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Average Price by Number of People Accomodated", 
+       x = "Number of people accommodated", 
+       y = "Average Price", 
+       fill = "Price Bracket") +
+  scale_fill_viridis_d(option = "C") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g5
+```
+### Average Price by Number of People Accommodated
+
+The graph shows a clear positive relationship between the number of people a property can accommodate and its average price. Properties that accommodate 1–4 people tend to have a relatively moderate average price (ranging up to €600). As the accommodation capacity increases, the price rises significantly, with properties accommodating 15 people reaching average prices above €1,600. This trend indicates that larger accommodations are associated with higher prices, likely reflecting the increased size, amenities, and demand for group bookings.
+
+```{r}
+g6 <- df_cleaned %>%
+  filter(!is.na(bedrooms), !is.na(price)) %>%
+  group_by(bedrooms) %>%
+  summarise(avg_price_rt = mean(price, na.rm = TRUE), .groups = "drop") %>%
+  mutate(price_bracket = cut(avg_price_rt, 
+                             breaks = seq(0, 2500, by = 500),  # Increased upper limit
+                             labels = c("[0-500]", "[500-1000]", "[1000-1500]", "[1500-2000]", "[2000-2500]"),
+                             include.lowest = TRUE,
+                             right = TRUE)) %>%  # Ensure all values are captured
+  ggplot(aes(x = bedrooms, 
+             y = avg_price_rt, 
+             fill = price_bracket)) + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Average Price by Number of Bedrooms",
+       x = "# of Bedrooms",
+       y = "Average Price",
+       fill = "Price Bracket") +
+  scale_fill_viridis_d(option = "C", na.value = "gray") +  # NA values shown in gray
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g6
+```
+### Average Price by Number of Bedrooms
+
+This graph highlights a positive correlation between the number of bedrooms in a property and its average price. Properties with 1–4 bedrooms have moderate average prices (€500–€1,500). However, for 7 bedrooms, the average price spikes dramatically, with some exceeding €2,000. Properties with unusually high bedroom counts (e.g., 38) show lower average prices, possibly reflecting outliers or unconventional property types. This trend demonstrates that properties with more bedrooms command higher prices, likely due to their ability to accommodate larger groups or offer more luxury.
+
+2.d. How does the number of amenities offered by a listing affect its price?
+
+```{r}
+g7 <- df_cleaned %>%
+  mutate(num_amenities = rowSums(select(., 
+                                        has_tv, has_wifi, has_kitchen, 
+                                        `has_air conditioning`, has_parking, has_pool, 
+                                        has_washer, has_dryer, has_heating, has_pets, 
+                                        `has_smoke alarm`, has_elevator), na.rm = TRUE)) %>%
+  group_by(num_amenities) %>%
+  summarise(avg_price_rt = mean(price, na.rm = TRUE), .groups = "drop") %>%
+  mutate(price_bracket = cut(avg_price_rt, 
+                             breaks = seq(0, 500, by = 50), 
+                             labels = c("[0-50]", "[50-100]", "[100-150]", "[150-200]", 
+                                        "[200-250]", "[250-300]", "[300-350]", "[350-400]", 
+                                        "[400-450]", "[450-500]"),
+                             include.lowest = TRUE)) %>%
+  ggplot(aes(x = num_amenities,
+             y = avg_price_rt,
+             fill = price_bracket)) +
+  geom_bar(stat = "identity") + 
+  labs(title = "Average Price by Number of Amenities",
+       x = "Number of Amenities Included",
+       y = "Average Price",
+       fill = "Average Price") +
+  scale_fill_viridis_d(option = "C") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+g7
+```
+### Number of Amenitities
+
+The relationship between the number of amenities and average price reflects the interplay between property type and the amenities offered. Hotel rooms, often equipped with fewer but essential amenities like a TV and elevator access, can command high prices due to convenience and location, similar to fully equipped houses with features like a kitchen, washer, and parking. Mid-range properties follow a linear pattern where prices steadily increase with the number of amenities, reflecting the added value for guests. This progression highlights how both basic, high-convenience properties and fully equipped ones can justify premium pricing, while mid-tier properties show a more direct correlation between price and the number of amenities provided.
+
+
+3. How do host characteristics (superhost status, response rate, response time, total count of listings) affect listing performance? 
+
+3.a. Do superhosts get better ratings? 
+
+```{r}
+df_filtered <- df_cleaned %>%
+  filter(!is.na(review_scores_rating) & !is.na(host_is_superhost)) %>%
+  mutate(
+    review_bracket = cut(
+      review_scores_rating,
+      breaks = seq(0, 5, by = 0.25),  
+      labels = paste0(seq(0, 4.75, by = 0.25), " - ", seq(0.25, 5, by = 0.25)),  
+      include.lowest = TRUE
+    )
+  ) %>%
+  group_by(host_is_superhost, review_bracket) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(host_is_superhost) %>%
+  mutate(percent = count / sum(count) * 100)  
+
+ggplot(df_filtered, aes(x = review_bracket, y = percent, fill = host_is_superhost)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Percentage Distribution of Review Scores by Superhost Status",
+    x = "Review Score Bracket",
+    y = "Percentage (%)"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "#ee7854", "FALSE" = "#0d0888"), 
+                    name = "Superhost Status", 
+                    labels = c("Regular hosts", "Superhosts")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+The vast majority of reviews for both groups are clustered in the top range (4.5 - 5), indicating an overall positive trend in Airbnb ratings.
+Superhosts outperform Regular Hosts in achieving top-tier ratings, highlighting their higher level of service quality and guest satisfaction.
+
+To test this, we run a t-test to see if there is a statistically significant relationship.
+
+```{r}
+t_test_result <- t.test(
+  review_scores_rating ~ host_is_superhost,
+  data = df_cleaned,
+  var.equal = FALSE
+)
+
+print(t_test_result)
+```
+
+The t-test shows a highly significant difference in average review scores between superhosts and non-superhosts (p-value < 2.2e-16). Superhosts have higher average review scores (4.859) compared to non-superhosts (4.681), with a mean difference of approximately 0.18 within a 95% confidence interval of -0.183 to -0.174.We expand on this later with a regression.
+
+3.b. Is the host response rate associated with better ratings?
+
+```{r}
+
+df_aggregated <- df_cleaned %>%
+  filter(!is.na(review_scores_rating) & !is.na(host_response_rate)) %>%
+  mutate(
+    response_rate_bracket = cut(
+      host_response_rate,
+      breaks = seq(0, 100, by = 10),
+      labels = seq(10, 100, by = 10),
+      include.lowest = TRUE
+    )
+  ) %>%
+  group_by(response_rate_bracket) %>%
+  summarize(
+    mean_rating = mean(review_scores_rating), 
+    .groups = "drop"
+  )
+
+ggplot(df_aggregated, aes(x = as.numeric(as.character(response_rate_bracket)), y = mean_rating)) +
+  geom_line(color = "#0d0888", size = 1) +
+  scale_y_continuous(
+    limits = c(4, 5),
+    breaks = seq(0, 5, by = 0.5)
+  ) +
+  labs(
+    title = "Relationship Between Host Response Rate and Review Scores",
+    x = "Host Response Rate (%)",
+    y = "Average Review Score"
+  ) +
+  scale_x_continuous(breaks = seq(10, 100, by = 10)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+When observed, the average review score does not seem to be specifically related to the host response rate. We assess this further in the regression.
+
+3.c. Is the host's response time associated with better ratings? 
+
+```{r}
+df_filtered_2 <- df_cleaned %>%
+  filter(!is.na(host_response_time), !is.na(review_scores_rating), review_scores_rating >= 4, review_scores_rating <= 5) %>%
+  mutate(
+    host_response_time = factor(
+      host_response_time,
+      levels = c("within an hour", "within a few hours", "within a day", "a few days or more")
+    )
+  )
+
+ggplot(df_filtered_2, aes(x = host_response_time, y = review_scores_rating)) +
+  geom_boxplot(fill = "#ad2891", outlier.color = "red", outlier.size = 1.5) +
+  labs(
+    title = "Relationship Between Host Response Time and Review Scores (4 to 5)",
+    x = "Host Response Time",
+    y = "Review Scores Rating"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The boxplot illustrates the relationship between host response time and review scores (limited to the range of 4 to 5). Across all response times, the median review score remains consistently high, close to 5. However, there is a slight trend of higher review scores for hosts responding "within an hour," as indicated by the more compact interquartile range near the upper limit of 5. The variability increases slightly for hosts who take "within a day" or "a few days or more" to respond, with a broader spread and lower outliers closer to 4. This suggests that quicker response times may correlate with slightly better review consistency, though the overall impact appears marginal given the consistently high median scores across all groups.
+
+3.d. Is the host's total count of listings associated with better ratings? 
+
+```{r}
+df_cleaned <- df_cleaned %>%
+  mutate(listings_category = case_when(
+    host_total_listings_count <= 2 ~ "Small (1-2)",
+    host_total_listings_count <= 10 ~ "Medium (3-10)",
+    host_total_listings_count <= 50 ~ "Large (11-50)",
+    TRUE ~ "Very Large (51+)"
+  ))
+
+average_ratings <- df_cleaned %>%
+  group_by(listings_category) %>%
+  summarize(mean_rating = mean(review_scores_rating, na.rm = TRUE), .groups = "drop")
+
+average_ratings$listings_category <- factor(
+  average_ratings$listings_category,
+  levels = c("Small (1-2)", "Medium (3-10)", "Large (11-50)", "Very Large (51+)")
+)
+
+ggplot(average_ratings, aes(x = listings_category, y = mean_rating, fill = listings_category)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  geom_label(
+    aes(label = round(mean_rating, 2)),
+    position = position_stack(vjust = 0.5),
+    fill = "white", 
+    color = "black",  
+    fontface = "bold"  
+  ) +
+  labs(
+    title = "Average Review Scores by Total Listings Count",
+    x = "Host Listings Category",
+    y = "Average Review Score"
+  ) +
+  scale_fill_viridis_d(option = "C") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major.y = element_line(size = 0.5, color = "gray90"),
+    panel.grid.minor.y = element_line(size = 0.3, color = "gray95")
+  )
+
+
+```
+
+The bar chart shows the relationship between the total number of listings a host manages (categorized into small, medium, large, and very large portfolios) and the average review scores they receive. Hosts with small portfolios (1–2 listings) achieve the highest average review score of 4.76, while those managing very large portfolios (51+ listings) have the lowest average review score of 4.5. There is a clear downward trend as the portfolio size increases, suggesting that hosts with fewer listings may provide more personalized and attentive service, leading to better guest satisfaction and higher ratings. This may indicate that larger-scale operations face challenges in maintaining the same level of quality or attention to detail.
+
+
+4. Does the license status of the listing affect its price and/or performance?
+4.a. Does license status affect the price?
+
+```{r}
+df_cleaned <- df_cleaned %>%
+  mutate(
+    license_detailed = case_when(
+      str_detect(license, "\\d") ~ "licensed",  
+      is.na(license) ~ "not licensed",            
+      license == "Available with a mobility lease only (\"bail mobilité\")" ~ "exempt (mobility)",  
+      license == "Exempt - hotel-type listing" ~ "exempt (hotel-type) ",  
+      TRUE ~ "unknown"                     
+    )
+  )
+
+ggplot(df_cleaned, aes(x = license_detailed, y = price, fill = license_detailed)) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 1, notch = TRUE) +
+  scale_y_log10() + 
+  labs(
+    title = "Log-Scaled Price Distribution by License Status",
+    x = "License Status",
+    y = "Price (log scale)",
+    fill = "License Status"
+  ) +
+  scale_fill_viridis_d(option = "C") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+Licensed Listings: The box plot reveals that licensed listings tend to have higher prices, with a slightly elevated median and a broader interquartile range compared to unlicensed listings. This suggests that obtaining a license may allow hosts to charge a premium, likely reflecting higher perceived quality or regulatory compliance.
+
+Unlicensed Listings: Unlicensed listings exhibit lower median prices, with a narrower interquartile range. This could indicate that these listings target more budget-conscious customers or operate in less competitive or less regulated markets.
+
+Exempt Listings: While the focus is on licensable categories, exempt listings are worth mentioning as they introduce an interesting middle ground:
+
+- Hotel-Type Exemptions: These appear to behave similarly to licensed listings in terms of price, suggesting they target a similar customer base.
+- Mobility Lease Exemptions: Prices here fall slightly below hotel-type exemptions but remain competitive, indicating these listings occupy a niche between budget and premium options.
+
+4.b. Does license status affect ratings?
+
+```{r}
+ggplot(df_cleaned, aes(x = license_detailed, y = review_scores_rating, fill = license_detailed)) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 1, notch = TRUE) +
+  scale_y_continuous(limits = c(3, 5)) + 
+  labs(
+    title = "Review Scores Rating Distribution by License Status",
+    x = "License Status",
+    y = "Review Scores Rating",
+    fill = "License Status"
+  ) +
+  scale_fill_viridis_d(option = "C") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+This boxplot shows that exempt (hotel-type) hosts generally have the highest median ratings, around 4.5, and a relatively narrow spread, indicating more consistently positive reviews with a few high outliers. Exempt (mobility) listings appear slightly lower, with a slightly wider range but still centered near 4.4. In contrast, licensed hosts display a lower median around 4.2 and a cluster of outliers in the 3.5–3.8 zone, suggesting more variation and some negative experiences. Finally, not licensed hosts show the lowest median rating at about 4.0 and the widest distribution, indicating less consistent guest satisfaction and many low outliers.
+
+
+# IV- Regression analyses to predict price, demand, and ratings.
+
+1. Preparing the variables.
+a- neighborhood_overview:
+For the neighborhood overview, we decided to create the variable has_nbhd_desc to show if it is or isn't the case. However, after inspecting the data, in order to ensure the answers are relevant, we decided to go with a minimum of 20 characters for TRUE.
+```{r}
+df_cleaned <- df_cleaned %>%
+  mutate(has_nbhd_desc = !is.na(neighborhood_overview) & nchar(neighborhood_overview) >= 20)
+```
+
+b- host_since: we create a variable called experience which calculates the years the host has been on airbnb.
+```{r}
+df_cleaned$host_since <- as.numeric(as.character(df_cleaned$host_since))
+current_year <- as.numeric(format(Sys.Date(), "%Y"))
+df_cleaned$experience <- current_year - df_cleaned$host_since
+```
+
+c- host_about: we create the variable has_nbhd_desc to show if it is or isn't the case. However, after inspecting the data, in order to ensure the answers are relevant, we decided to go with a minimum of 20 characters for TRUE (many put in a "." or a space for example)
+
+```{r}
+df_cleaned <- df_cleaned %>%
+  mutate(has_host_desc = !is.na(host_about) & nchar(host_about) >= 20)
+```
+
+d- host_response_time: we convert it to ordered factors.
+```{r results=FALSE}
+class(df_cleaned$host_response_time)
+factor(df_cleaned$host_response_time,
+       levels = c("within an hour", "within a few hours", "within a day", "a few days or more"),
+       ordered = TRUE)
+
+```
+
+e- host_response_rate: after checking that it's indeed numerical, it is ready for use.
+```{r}
+class(df_cleaned$host_response_rate)
+```
+
+f- host_is_superhost: we convert it into a factor.
+```{r}
+class(df_cleaned$host_is_superhost)
+df_cleaned$host_is_superhost <- factor(df_cleaned$host_is_superhost)
+```
+
+g- neighbourhood_cleansed: we convert it into a factor and rename it.
+```{r}
+df_cleaned <- df_cleaned %>%
+  mutate(neighbourhood = factor(neighbourhood_cleansed)) 
+```
+
+h- property_type: we convert it into a factor.
+```{r}
+df_cleaned$property_type <- factor(df_cleaned$property_type)
+```
+
+i- bathrooms_text: we convert it to numeric and rename it.
+```{r}
+class(df_cleaned$bathrooms_text)
+df_cleaned$bathrooms <- as.numeric(df_cleaned$bathrooms_text)
+```
+
+j- license_detailed:
+```{r}
+class(df_cleaned$license_detailed)
+df_cleaned$license_detailed <- factor(df_cleaned$license_detailed)
+```
+k- host_location:
+```{r}
+df_cleaned$host_paris <- ifelse(df_cleaned$host_location == "Paris, France", TRUE, FALSE)
+```
+
+l- has_air conditioning:
+```{r}
+df_cleaned <- df_cleaned %>%
+  rename(has_air_conditioning = `has_air conditioning`)
+```
+
+m- has_smoke alarm:
+```{r}
+df_cleaned <- df_cleaned %>%
+  rename(has_smoke_alarm = `has_smoke alarm`)
+```
+
+2. Linear Regression model for ratings
+a. Taking care of missing data:
+```{r results=FALSE}
+variables_rating <- c(
+  "review_scores_rating",
+  "has_nbhd_desc", "experience", "host_paris", "has_host_desc", "host_response_time",
+  "host_response_rate", "host_is_superhost", "host_has_profile_pic", "host_identity_verified",
+  "neighbourhood", "property_type", "accommodates", "bathrooms", "bedrooms", "price", 
+  "availability_365", "number_of_reviews", "review_scores_accuracy", "review_scores_cleanliness",
+  "review_scores_checkin", "review_scores_communication", "review_scores_location",
+  "instant_bookable", "total_listings_Paris", "has_tv", "has_wifi", "has_kitchen", 
+  "has_air_conditioning", "has_parking", "has_pool", "has_washer", "has_dryer", "has_heating",
+  "has_pets", "has_smoke_alarm", "has_elevator", "license_detailed"
+)
+
+df_variables_rating <- df_cleaned[, variables_rating]
+
+missing_values <- sapply(df_variables_rating, function(x) sum(is.na(x)))
+
+rating_missing_df <- data.frame(
+  Variable = names(missing_values),
+  MissingCount = missing_values
+)
+print(rating_missing_df)
+```
+We replace missing review_scores_rating with the median.
+```{r}
+median_rating <- median(df_cleaned$review_scores_rating, na.rm = TRUE)
+df_cleaned$review_scores_rating[is.na(df_cleaned$review_scores_rating)] <- median_rating
+```
+
+We replace missing values in host_paris with "unknown"
+```{r}
+df_cleaned$host_paris <- as.factor(df_cleaned$host_paris)
+
+df_cleaned$host_paris <- addNA(df_cleaned$host_paris)
+levels(df_cleaned$host_paris)[is.na(levels(df_cleaned$host_paris))] <- "unknown"
+```
+
+We replace missing values in host_response_time with "unknown"
+```{r}
+df_cleaned$host_response_time <- as.factor(df_cleaned$host_response_time)
+
+df_cleaned$host_response_time <- addNA(df_cleaned$host_response_time)
+levels(df_cleaned$host_response_time)[is.na(levels(df_cleaned$host_response_time))] <- "unknown"
+```
+
+We replace missing values in host_response_rate with the median.
+```{r}
+median_response_rate <- median(df_cleaned$host_response_rate, na.rm = TRUE)
+df_cleaned$host_response_rate[is.na(df_cleaned$host_response_rate)] <- median_response_rate
+```
+
+We replace missing values in price with the median.
+```{r}
+median_price <- median(df_cleaned$price, na.rm = TRUE)
+df_cleaned$price[is.na(df_cleaned$price)] <- median_price
+```
+
+We replace review_scores_accuracy with the median.
+```{r}
+median_rating_accuracy <- median(df_cleaned$review_scores_accuracy, na.rm = TRUE)
+df_cleaned$review_scores_accuracy[is.na(df_cleaned$review_scores_accuracy)] <- median_rating_accuracy
+```
+
+We replace review_scores_cleanliness with the median.
+```{r}
+median_rating_cleanliness <- median(df_cleaned$review_scores_cleanliness, na.rm = TRUE)
+df_cleaned$review_scores_cleanliness[is.na(df_cleaned$review_scores_cleanliness)] <- median_rating_cleanliness
+```
+
+We replace review_scores_checkin with the median.
+```{r}
+median_rating_checkin <- median(df_cleaned$review_scores_checkin, na.rm = TRUE)
+df_cleaned$review_scores_checkin[is.na(df_cleaned$review_scores_checkin)] <- median_rating_checkin
+```
+
+We replace review_scores_communication with the median.
+```{r}
+median_rating_communication <- median(df_cleaned$review_scores_communication, na.rm = TRUE)
+df_cleaned$review_scores_communication[is.na(df_cleaned$review_scores_communication)] <- median_rating_communication
+```
+
+We replace review_scores_location with the median.
+```{r}
+median_rating_location <- median(df_cleaned$review_scores_location, na.rm = TRUE)
+df_cleaned$review_scores_location[is.na(df_cleaned$review_scores_location)] <- median_rating_location
+```
+
+2. b. Running the ratings regression:
+
+We remove the separate ratings per category (cleanliness, checkin, etc due to extremely high collinearity). 
+After attempting multiple models, we decide to go with the the following:
+
+```{r}
+model_ratings <- lm(review_scores_rating ~ has_nbhd_desc + experience + host_paris + 
+                   has_host_desc + host_response_time + host_response_rate + 
+                   host_is_superhost + host_has_profile_pic + host_identity_verified + accommodates + bathrooms + bedrooms + 
+                   price + availability_365 + number_of_reviews + 
+                   instant_bookable + total_listings_Paris + has_wifi + 
+                   has_kitchen + has_air_conditioning + has_parking + has_pool + 
+                   has_washer + has_heating + has_pets + has_smoke_alarm + 
+                   has_elevator + license_detailed, data = df_cleaned)
+
+# View model summary
+summary(model_ratings)
+```
+2.c. Rating model interpretation:
+
+Model fit:
+
+- R-Squared: 0.084 → This model only explains about 8.4% of the variation in review_scores_rating, meaning most factors influencing ratings are unobserved or unaccounted for.
+
+- Adjusted R-Squared: 0.084 → Since the adjusted R² is almost identical, the inclusion of variables hasn't significantly inflated the explanatory power of the model.
+
+- F-Statistic: 231.6, p < 2.2e-16 → The model is statistically significant as a whole, meaning at least some of the predictors have a meaningful relationship with ratings.
+
+Key findings:
+
+- Host Superhost Status (host_is_superhostTRUE, +0.139, p < 2e-16) → Superhosts receive significantly higher ratings, reinforcing Airbnb's credibility in using this badge.
+
+- Instant Bookable (instant_bookableTRUE, -0.072, p < 2e-16) → Instant booking leads to lower ratings, possibly due to less guest-host interaction or less vetting of guests.
+
+- Host Response Time (within an hour, -0.169, p < 2e-16) → Faster response times correlate with lower ratings, possibly because of the host being commercial and having automated responses.
+
+- Host Has Profile Picture (host_has_profile_picTRUE, -0.040, p < 2e-16) → A verified profile picture surprisingly correlates with lower ratings, potentially due to platform bias or guest expectations.
+
+- Experience (experience, +0.006, p < 2e-16) → More experienced hosts receive slightly higher ratings, showing that hosting skills improve over time.
+
+- Number of Reviews (number_of_reviews, -0.0002, p < 2e-16) → More reviews slightly decrease ratings, possibly due to a mix of both positive and negative experiences over time.
+
+- Has WiFi (has_wifiTRUE, +0.048, p < 2e-16) → Providing WiFi boosts ratings, indicating that connectivity is a crucial expectation for guests.
+
+- Has Kitchen (has_kitchenTRUE, -0.038, p = 7.18e-10) → Listings with kitchens receive lower ratings, possibly because guests expect full functionality and are disappointed when it's lacking.
+
+- Has Washer (has_washerTRUE, +0.085, p < 2e-16) → Having a washer leads to significantly higher ratings, showing the importance of convenience for longer stays.
+
+- Price (price, +0.00002, p = 5.46e-16) → Higher prices slightly increase ratings, likely reflecting guests associating higher cost with better quality.
+
+3. Linear Regression model for price
+3.a. Taking care of missing data:
+
+```{r results=FALSE}
+variables_price <- c("has_nbhd_desc","has_host_desc","host_response_time","host_response_rate", "host_is_superhost","neighbourhood","property_type","accommodates","bathrooms","availability_365","number_of_reviews", "review_scores_rating","review_scores_accuracy","review_scores_cleanliness","review_scores_checkin", "review_scores_communication","review_scores_location","instant_bookable", "reviews_per_month","total_listings_Paris","has_tv","has_wifi","has_kitchen","has_air_conditioning","has_parking","has_pool","has_washer","has_dryer","has_heating","has_pets","has_smoke_alarm","has_elevator", "license_detailed","bedrooms"
+)
+
+df_variables_price <- df_cleaned[, variables_price]
+
+missing_values <- sapply(df_variables_price, function(x) sum(is.na(x)))
+
+price_missing_df <- data.frame(
+  Variable = names(missing_values),
+  MissingCount = missing_values
+)
+print(price_missing_df)
+```
+
+We replace reviews_per_month with the median.
+```{r}
+median_rev_per_month <- median(df_cleaned$reviews_per_month, na.rm = TRUE)
+df_cleaned$reviews_per_month[is.na(df_cleaned$reviews_per_month)] <- median_rev_per_month
+```
+
+3.b. Running the price regression:
+```{r results=FALSE}
+variables_price_table <- c(variables_price, "price")
+
+df_subset_price <- df_cleaned %>% select(all_of(variables_price_table))
+
+variable_table <- data.frame(
+  Variable = variables_price_table,
+  DataType = sapply(df_subset_price, class),
+  UniqueValues = sapply(df_subset_price, function(x) length(unique(x)))
+)
+print(variable_table)
+
+```
+
+After trying multiple models, we decided to go with the following:
+
+```{r}
+model_price <- lm(log(price) ~ has_nbhd_desc + has_host_desc + host_response_time + 
+                    host_response_rate + host_is_superhost + neighbourhood + accommodates + bathrooms + availability_365 + 
+                    number_of_reviews + review_scores_rating + total_listings_Paris + 
+                    has_tv + has_wifi + has_kitchen + has_air_conditioning + 
+                    has_parking + has_pool + has_washer + has_dryer + has_heating + 
+                    has_pets + has_smoke_alarm + has_elevator + license_detailed + 
+                    bedrooms, data = df_cleaned)
+
+summary(model_price)
+```
+3.c. Price model interpretation:
+
+Model Fit:
+
+- R-Squared: 0.4164 → The model explains about 41.64% of the variation in log(price), indicating a moderate level of explanatory power. While useful, a significant portion of price variation remains unexplained.
+- Adjusted R-Squared: 0.416 → The slight difference from the R² suggests that additional predictors are not overly inflating the model’s explanatory power, meaning the variables included are relevant.
+- F-Statistic: 1242, p < 2.2e-16 → The model is highly significant, meaning that at least some predictors have a meaningful impact on the price.
+
+Key Findings:
+- Superhost Status (host_is_superhostTRUE, beta = 0.070, p < 2e-16) → Superhost listings are priced about 7% higher, suggesting that trust and quality perception drive premiums.
+- Neighbourhood Effects:
+- Luxembourg (beta = 0.287, p < 2e-16), Palais-Bourbon (beta = 0.314, p < 2e-16), Louvre (beta = 0.282, p < 2e-16) → Luxury neighborhoods have the highest price premiums.
+- Buttes-Chaumont (beta = -0.180, p < 2e-16), Ménilmontant (beta = -0.184, p < 2e-16) → More affordable neighborhoods have significantly lower prices.
+- Bedrooms (beta = 0.114, p < 2e-16) → Each additional bedroom increases the price by approximately 11.4%, reinforcing the importance of space in pricing.
+- Bathrooms (beta = 0.064, p < 2e-16) → Additional bathrooms add around 6.4% to the price, suggesting guests highly value convenience.
+- Review Scores Rating (beta = 0.151, p < 2e-16) → A higher rating significantly increases price by 15.1%, confirming that strong reputations drive demand.
+- WiFi (beta = 0.087, p < 2e-16) → Listings with WiFi command an 8.7% price premium, emphasizing the necessity of internet access.
+- Air Conditioning (beta = 0.196, p < 2e-16) → Air conditioning adds nearly 20% to the price, showing a strong demand for climate control, likely due to summer tourism.
+- Kitchen (beta = -0.204, p < 2e-16) → Unexpectedly, listings with kitchens tend to be cheaper, possibly because luxury hotels and serviced apartments without kitchens charge more.
+- TV (beta = 0.067, p < 2e-16) & Pool (beta = 0.137, p < 2e-16) → Having a pool or TV significantly boosts price, likely reflecting premium/luxury accommodations.
+- Elevator (beta = 0.054, p < 2e-16) → Elevators increase price, likely because listings in taller, modern buildings are pricier.
+Licensing Effects:
+- "Exempt (mobility)" (beta = -0.493, p < 2e-16), "Not licensed" (beta = -0.203, p < 2e-16) → Non-licensed or mobility-exempt listings are significantly cheaper, suggesting regulatory compliance boosts perceived value.
+
+4. Linear Regression model for demand
+4. a. Taking care of missing data:
+```{r results=FALSE}
+df_cleaned$demand <- 365 - df_cleaned$availability_365
+
+variables_demand <- c(variables_demand <- c( "demand","has_nbhd_desc","experience","host_paris","has_host_desc","host_response_time","host_response_rate","host_has_profile_pic","host_identity_verified","neighbourhood","host_is_superhost","property_type","accommodates","bathrooms","bedrooms","price","number_of_reviews","review_scores_rating","review_scores_accuracy","review_scores_cleanliness","review_scores_checkin","review_scores_communication","review_scores_location", "instant_bookable","reviews_per_month","total_listings_Paris","has_tv","has_wifi","has_kitchen","has_air_conditioning","has_parking","has_pool","has_washer","has_dryer","has_heating","has_pets","has_smoke_alarm","has_elevator","license_detailed"))
+
+df_variables_demand <- df_cleaned[, variables_demand]
+
+missing_values <- sapply(df_variables_demand, function(x) sum(is.na(x)))
+
+demand_missing_df <- data.frame(
+  Variable = names(missing_values),
+  MissingCount = missing_values
+)
+print(demand_missing_df)
+```
+It seems that no substantially missing data is left to impute. 
+
+4.b. Running the regression:
+After trying multiple models, we proceed with the following:
+```{r}
+
+model_demand <- lm(demand ~ has_nbhd_desc + experience + host_paris + has_host_desc + 
+                   host_response_time + host_response_rate + host_has_profile_pic + 
+                   host_identity_verified + neighbourhood + host_is_superhost + accommodates + bathrooms + bedrooms + log(price) + 
+                   number_of_reviews + review_scores_rating + 
+                   instant_bookable + reviews_per_month + total_listings_Paris + has_tv + 
+                   has_wifi + has_kitchen + has_air_conditioning + has_parking + has_pool + 
+                   has_washer + has_dryer + has_heating + has_pets + has_smoke_alarm + 
+                   has_elevator + license_detailed, data = df_cleaned)
+
+# View model summary
+summary(model_demand)
+```
+4.c. Demand model interpretation:
+
+Model Fit:
+- R-Squared: 0.1432 → The model explains about 14.32% of the variation in demand, which is relatively low. Many external factors (e.g., seasonality, tourism trends, competitive pricing) likely play a significant role.
+- Adjusted R-Squared: 0.1426 → Very close to R², indicating that adding variables did not introduce significant noise.
+- F-Statistic: 254.6, p < 2.2e-16 → The model as a whole is statistically significant, meaning at least some variables meaningfully explain demand.
+- Key Findings:
+
+Listing & Host Descriptions
+
+- Host Description Available (beta = +7.37, p < 2e-16) → Listings with a host description see ~7 more booked nights per year, likely due to increased transparency and guest confidence.
+- Neighborhood Description Available (beta = +5.59, p < 2e-16) → Having a neighborhood description is associated with 5.6 more booked nights per year, suggesting guests value location context when choosing a listing.
+- Host Has Profile Picture (beta = +20.28, p < 2e-16) → Hosts with a profile picture experience 20 more nights booked annually, highlighting the importance of visual trust in bookings.
+- Host Identity Verified (beta = -29.73, p < 2e-16) → Surprisingly, identity verification is associated with 30 fewer booked nights per year, possibly due to stricter verification being more common among less flexible or high-end - listings.
+
+Host & Response Factors
+
+- Host Located in Paris:
+- Host in Paris (beta = +18.5, p < 2e-16) → Hosts residing in Paris see 18 more booked nights per year, possibly due to better guest support and responsiveness.
+- Host Location Unknown (beta = +11.74, p < 2e-16) → Even listings where the host's location is unknown see a boost, suggesting guests care more about the listing than host location.
+- Host Response Time:
+- Responds Within an Hour (beta = +16.78, p = 0.0078) → Fast responses (within an hour) significantly boost demand, adding ~17 nights per year.
+- Unknown Response Time (beta = +38.93, p < 2e-16) → Interestingly, unknown response time listings perform better, possibly due to auto-response settings or instant book features.
+- Superhost Status (beta = +5.04, p < 2e-16) → Superhosts see 5 more nights booked per year, reflecting the trust premium associated with this badge.
+
+ Pricing, Ratings & Market Effects:
+
+- Price Sensitivity (log(price), beta = -38.51, p < 2e-16) → A 1% price increase reduces demand by ~0.385 nights, showing strong price elasticity.
+- Review Score Rating (beta = +14.02, p < 2e-16) → A 1-point increase in rating (e.g., 4.5 → 5.5) results in ~14 more booked nights per year, highlighting the power of guest reviews.
+- Total Listings in Paris (beta = -0.05, p < 2e-16) → More listings in the market slightly reduce demand per listing.
+- Instant Booking Available (beta = -11.35, p < 2e-16) → Listings with instant booking enabled receive ~11 fewer booked nights per year, suggesting guests prefer direct host interaction before booking.
+
+Property Features & Amenities:
+
+- Bedrooms (beta = +18.25, p < 2e-16) → Each additional bedroom increases annual demand by ~18 nights, making larger accommodations more attractive.
+- Kitchen (beta = +16.36, p < 2e-16) → A kitchen boosts bookings by 16 nights per year, likely appealing to long-term travelers and families.
+- Heating (beta = +32.31, p < 2e-16) → Listings with heating see 32 more nights booked annually, highlighting strong seasonal effects.
+- Washer (beta = +22.21, p < 2e-16) → A washer adds ~22 booked nights per year, indicating demand from longer-term stays or business travelers.
+- Air Conditioning (beta = -23.14, p < 2e-16) → Counterintuitively, air-conditioned listings see ~23 fewer nights booked per year, possibly due to pricing differences or location-based factors.
+- TV (beta = -19.13, p < 2e-16) → Listings with TVs see ~19 fewer booked nights, suggesting TV access is not a major decision factor for guests.
+- Parking (beta = -12.24, p < 2e-16) → Listings with parking see lower demand, possibly because centrally located apartments without parking appeal more to tourists.
+- Pool (beta = -13.50, p = 0.0011) → Having a pool surprisingly reduces demand, possibly due to higher prices or seasonal demand shifts.
+- WiFi Availability (p = 0.85, not significant) → WiFi does not significantly impact demand, likely because it is expected as a standard feature.
+- Elevator (beta = +9.78, p < 2e-16) → Listings with elevators see ~10 more booked nights annually, likely due to accessibility preferences.
+
+Licensing & Regulatory Status: License Type Matters More Than Licensing Itself
+
+- Licensed Listings (beta = +23.50, p < 2e-16) → Short-term rentals that have proper licenses perform well, suggesting compliance builds guest trust.
+- Unlicensed (Short-Term Rentals) (beta = +24.92, p < 2e-16) → Unlicensed short-term rentals perform just as well as licensed ones, indicating that demand is not deterred by lack of formal registration.
+- Mobility Lease / Exempt Listings (beta = -46.18, p < 2e-16) → Listings under the mobility lease exemption (intended for long-term rentals) see 46 fewer booked nights per year, meaning guests strongly prefer standard Airbnb-style - listings.
