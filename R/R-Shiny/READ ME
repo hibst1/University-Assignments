@@ -1,0 +1,11 @@
+This project was the final assignment for the course in Data Science in Real Life. 
+It was an analysis of the Parisian Airbnb Data which was then summarized into an R-Shiny.
+
+In order to replicate this analysis, you will need to download the open source Airbnb Data found in the folder Data,
+as well as the R script: Shiny_final_Aziz_Mekonnen.R . In order to make the replication as smooth as possible, it is best to
+open a new R project and in that have the R script with the subfolder called Data, where the data will be stored.
+
+It should then be easy to run the Shiny, just make sure to adjust the working directory to the new R proj that has both the 
+data and the Shiny script, and press Run App. If you want to see the analysis without the Shiny, there is an Rmd file (Final_assignment_Aziz_Mekonnen.Rmd) attached in
+this repository that gives insight into each calculation. 
+
